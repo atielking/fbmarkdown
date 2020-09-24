@@ -10,14 +10,11 @@
 
 namespace Facebook\Markdown;
 
-use namespace HH\Lib\Str;
+use namespace HH\Lib\{Str, Keyset};
 
 class TagFilterExtension extends RenderFilter {
   <<__Override>>
-  public function filter(
-    RenderContext $_context,
-    ASTNode $node,
-  ): vec<ASTNode> {
+  public function filter(RenderContext $_context, ASTNode $node): vec<ASTNode> {
     if ($node is Blocks\HTMLBlock) {
       return vec[$this->filterHTMLBlock($node)];
     }
@@ -25,6 +22,10 @@ class TagFilterExtension extends RenderFilter {
       return vec[$this->filterInlineHTML($node)];
     }
     return vec[$node];
+  }
+
+  public function addToTagBlacklist(keyset<string> $toAdd): void {
+    $this->blacklist = Keyset\union($this->blacklist, $toAdd);
   }
 
   protected function filterHTMLBlock(
@@ -39,7 +40,7 @@ class TagFilterExtension extends RenderFilter {
     return new Inlines\RawHTML($this->filterHTML($inline->getContent()));
   }
 
-  const keyset<string> BLACKLIST = keyset[
+  private keyset<string> $blacklist = keyset[
     '<title',
     '<textarea',
     '<style',
@@ -52,7 +53,7 @@ class TagFilterExtension extends RenderFilter {
   ];
 
   protected function filterHTML(string $code): string {
-    foreach (static::BLACKLIST as $tag) {
+    foreach ($this->blacklist as $tag) {
       $offset = 0;
       while (true) {
         $offset = Str\search_ci($code, $tag, $offset);
@@ -60,8 +61,7 @@ class TagFilterExtension extends RenderFilter {
           break;
         }
 
-        $code =
-          Str\slice($code, 0, $offset).
+        $code = Str\slice($code, 0, $offset).
           '&lt;'.
           Str\slice($code, $offset + 1);
         $offset += 3; // len('&lt;') - len('<')

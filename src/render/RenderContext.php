@@ -18,6 +18,7 @@ class RenderContext {
   private vec<RenderFilter> $extensions;
   private vec<RenderFilter> $enabledExtensions;
   private vec<RenderFilter> $filters = vec[];
+  private bool $areLinksNoFollowUGC = false;
   private ?Document $document;
 
   public function __construct() {
@@ -32,6 +33,15 @@ class RenderContext {
     return $this;
   }
 
+  public function addNoFollowUGCAllLinks(): this {
+    $this->areLinksNoFollowUGC = true;
+    return $this;
+  }
+
+  public function areLinksNoFollowUGC(): bool {
+    return $this->areLinksNoFollowUGC;
+  }
+
   public function disableNamedExtension(string $extension): this {
     $this->enabledExtensions = Vec\filter(
       $this->enabledExtensions,
@@ -40,11 +50,22 @@ class RenderContext {
     return $this;
   }
 
+  public function enableImageFiltering(): this {
+    foreach ($this->extensions as $extension) {
+      if (\get_class($extension) === "Facebook\Markdown\TagFilterExtension") {
+        $extension = $extension as TagFilterExtension;
+        $extension->addToTagBlacklist(keyset["<img"]);
+      }
+    }
+    return $this;
+  }
+
   public function enableNamedExtension(string $extension): this {
     $this->enabledExtensions = $this->extensions
       |> Vec\filter(
         $$,
-        $obj ==> Str\ends_with_ci(\get_class($obj), "\\".$extension.'Extension'),
+        $obj ==>
+          Str\ends_with_ci(\get_class($obj), "\\".$extension.'Extension'),
       )
       |> Vec\concat($$, $this->enabledExtensions)
       |> Vec\unique_by($$, $x ==> \get_class($x));
@@ -80,10 +101,7 @@ class RenderContext {
   }
 
   public function getFilters(): vec<RenderFilter> {
-    return Vec\concat(
-      $this->filters,
-      $this->enabledExtensions,
-    );
+    return Vec\concat($this->filters, $this->enabledExtensions);
   }
 
   public function appendFilters(RenderFilter ...$filters): this {
